@@ -3,11 +3,12 @@ Quiz Question Bank — Flask Backend
 B1-G6 DevOps Academic Project REST API with In-Memory Storage
 
 Endpoints:
-- GET  /         -> Serve the QuizBank SaaS dashboard
-- GET  /items    -> Retrieve all quiz questions
-- POST /items    -> Add a new quiz question
-- GET  /health   -> Health check endpoint
-- GET  /metrics  -> Prometheus metrics endpoint
+- GET  /              -> Serve the QuizBank SaaS dashboard
+- GET  /items         -> Retrieve all quiz questions
+- POST /items         -> Add a new quiz question
+- GET  /health        -> Health check endpoint
+- GET  /metrics       -> Prometheus metrics endpoint
+- GET  /api/topic-map -> Syllabus-to-question topic alias map
 """
 
 import time
@@ -73,6 +74,7 @@ def _record_metrics(response):
 import json
 import os
 from syllabus_data import SYLLABUS_STRUCTURE, SUBJECT_CATEGORIES
+from study_material_data import STUDY_MATERIAL, get_study_material_by_code, get_study_material_summary
 
 # ---------------------------------------------------------------------------
 # Pre-seeded In-Memory Question Store
@@ -134,6 +136,24 @@ def get_syllabus():
         "categories": SUBJECT_CATEGORIES,
         "subjects": SYLLABUS_STRUCTURE
     }), 200
+
+
+@app.route('/api/study-material', methods=['GET'])
+def get_study_materials():
+    """Returns the summary list or full study material for all subjects."""
+    include_full = request.args.get('full', 'false').lower() == 'true'
+    if include_full:
+        return jsonify(STUDY_MATERIAL), 200
+    return jsonify(get_study_material_summary()), 200
+
+
+@app.route('/api/study-material/<subject_code>', methods=['GET'])
+def get_subject_study_material(subject_code):
+    """Returns detailed study material theory and notes for a specific subject code."""
+    data = get_study_material_by_code(subject_code)
+    if not data:
+        return jsonify({"error": f"Study material for subject code '{subject_code}' not found"}), 404
+    return jsonify(data), 200
 
 
 @app.route('/items', methods=['GET'])
@@ -258,6 +278,73 @@ def create_item():
     QUESTIONS_GAUGE.set(len(questions_db))
 
     return jsonify(new_item), 201
+
+
+@app.route('/api/topic-map', methods=['GET'])
+def get_topic_map():
+    """Returns a mapping from syllabus topics to matching question topics.
+    
+    For each syllabus topic, returns the list of question topics that match it
+    (via exact match, substring containment, or significant token overlap).
+    This enables reliable frontend filtering without hard-coded aliases.
+    """
+    import re
+
+    def _normalize(s):
+        """Lowercase, strip punctuation, split into tokens."""
+        return set(re.findall(r'[a-z0-9]+', s.lower()))
+
+    # Collect all unique question topics for each (subject, module_number) pair
+    q_topics_by_submod = {}  # (subject, module_number) -> [topic_string, ...]
+    for q in questions_db:
+        key = (q.get('subject', ''), q.get('module_number', 0))
+        qt = q.get('topic', '').strip()
+        if qt:
+            q_topics_by_submod.setdefault(key, set()).add(qt)
+
+    # Common stop-words to ignore when comparing tokens
+    STOP = {'and', 'or', 'of', 'the', 'in', 'for', 'a', 'an', 'to', 'with', 'on', 'by'}
+
+    def _topics_match(syllabus_topic, question_topic):
+        """Return True if syllabus_topic is semantically related to question_topic."""
+        st = syllabus_topic.strip()
+        qt = question_topic.strip()
+
+        # 1. Exact match (case-insensitive)
+        if st.lower() == qt.lower():
+            return True
+
+        # 2. Either is a substring of the other (case-insensitive)
+        stl, qtl = st.lower(), qt.lower()
+        if stl in qtl or qtl in stl:
+            return True
+
+        # 3. Significant token overlap (ignoring stop-words, min 1 meaningful shared token)
+        st_tokens = _normalize(st) - STOP
+        qt_tokens = _normalize(qt) - STOP
+        if st_tokens and qt_tokens and len(st_tokens & qt_tokens) >= 1:
+            # Require shared tokens to be at least 3 chars to avoid noise (e.g. 'a', 'k')
+            meaningful_shared = {t for t in (st_tokens & qt_tokens) if len(t) >= 3}
+            if meaningful_shared:
+                return True
+
+        return False
+
+    # Build the map: for each subject → {module_number → {syllabus_topic → [matching_q_topics]}}
+    result = {}
+    for subj_data in SYLLABUS_STRUCTURE:
+        subject = subj_data['subject']
+        result[subject] = {}
+        for mod in subj_data.get('modules', []):
+            mod_num = mod['module_number']
+            q_topics_for_mod = q_topics_by_submod.get((subject, mod_num), set())
+            topic_matches = {}
+            for syl_topic in mod.get('topics', []):
+                matched = [qt for qt in q_topics_for_mod if _topics_match(syl_topic, qt)]
+                topic_matches[syl_topic] = matched
+            result[subject][mod_num] = topic_matches
+
+    return jsonify(result), 200
 
 
 @app.route('/health', methods=['GET'])

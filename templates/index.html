@@ -5,10 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>QuizBank — University of Mumbai T.E. AI&DS (2026-27) Question Bank</title>
     <meta name="description" content="Official Syllabus-Driven MCQ Question Bank and Interactive Quiz Engine for University of Mumbai T.E. Artificial Intelligence & Data Science (Sem V, 2026-27).">
-    <!-- Google Fonts: Plus Jakarta Sans & Inter -->
+    <!-- Google Fonts: Inter -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
     <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
     <link rel="stylesheet" href="/static/css/style.css">
@@ -52,6 +52,11 @@
                     <i data-lucide="folder-tree"></i>
                     <span>Syllabus & Subjects</span>
                     <span class="nav-badge" id="navCategoryCount">7</span>
+                </a>
+                <a href="#study" class="nav-item" id="navStudy" data-view="study">
+                    <i data-lucide="book-open"></i>
+                    <span>Study Material</span>
+                    <span class="nav-badge" id="navStudyCount">7</span>
                 </a>
                 <a href="javascript:void(0)" class="nav-item disabled" id="navSettings" title="Academic Year 2026-27" tabindex="-1">
                     <i data-lucide="book-marked"></i>
@@ -334,11 +339,24 @@
                     </div>
 
                     <!-- Multi-Filter Control Panel -->
-                    <div class="bank-filters-card" style="background: var(--card-bg); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: 1.25rem; margin-bottom: 1.5rem;">
-                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0.75rem;">
+                    <div class="bank-filters-card">
+                        <!-- Top Filter Controls Grid -->
+                        <div class="bank-filter-controls-grid">
+                            <!-- Search Field -->
+                            <div class="filter-col-search">
+                                <label for="bankSearchInput" class="bank-filter-label">SEARCH</label>
+                                <div class="bank-search-wrap">
+                                    <i data-lucide="search" class="bank-search-icon"></i>
+                                    <input type="text" id="bankSearchInput" class="form-control bank-search-input" placeholder="Search questions, topics, code, explanations...">
+                                    <button class="btn-clear-search" id="btnClearBankSearch" style="display: none;" title="Clear search">
+                                        <i data-lucide="x"></i>
+                                    </button>
+                                </div>
+                            </div>
+
                             <!-- Subject Filter -->
                             <div>
-                                <label for="bankSubjectFilter" style="font-size: 0.75rem; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 0.25rem;">SUBJECT</label>
+                                <label for="bankSubjectFilter" class="bank-filter-label">SUBJECT</label>
                                 <select id="bankSubjectFilter" class="custom-select" style="width: 100%;">
                                     <option value="all">All Subjects (7)</option>
                                 </select>
@@ -346,15 +364,23 @@
 
                             <!-- Module Filter -->
                             <div>
-                                <label for="bankModuleFilter" style="font-size: 0.75rem; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 0.25rem;">MODULE</label>
+                                <label for="bankModuleFilter" class="bank-filter-label">MODULE</label>
                                 <select id="bankModuleFilter" class="custom-select" style="width: 100%;">
                                     <option value="all">All Modules</option>
                                 </select>
                             </div>
 
+                            <!-- Topic Filter -->
+                            <div>
+                                <label for="bankTopicFilter" class="bank-filter-label">TOPIC</label>
+                                <select id="bankTopicFilter" class="custom-select" style="width: 100%;">
+                                    <option value="all">All Topics</option>
+                                </select>
+                            </div>
+
                             <!-- Difficulty Filter -->
                             <div>
-                                <label for="bankDiffFilter" style="font-size: 0.75rem; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 0.25rem;">DIFFICULTY</label>
+                                <label for="bankDiffFilter" class="bank-filter-label">DIFFICULTY</label>
                                 <select id="bankDiffFilter" class="custom-select" style="width: 100%;">
                                     <option value="all">All Difficulties</option>
                                     <option value="easy">Easy (25%)</option>
@@ -365,7 +391,7 @@
 
                             <!-- Question Type Filter -->
                             <div>
-                                <label for="bankTypeFilter" style="font-size: 0.75rem; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 0.25rem;">QUESTION TYPE</label>
+                                <label for="bankTypeFilter" class="bank-filter-label">QUESTION TYPE</label>
                                 <select id="bankTypeFilter" class="custom-select" style="width: 100%;">
                                     <option value="all">All Types</option>
                                     <option value="conceptual">Conceptual</option>
@@ -379,11 +405,37 @@
                                 </select>
                             </div>
                         </div>
+
+                        <!-- Active Filter Chips Bar & Quick Actions -->
+                        <div class="bank-active-filters-bar" id="bankActiveFiltersBar" style="display: none;">
+                            <div class="active-chips-list" id="bankActiveChipsList">
+                                <!-- Chips dynamically injected -->
+                            </div>
+                            <button class="btn btn-secondary btn-xs" id="btnResetAllBankFilters" onclick="resetBankFilters()">
+                                <i data-lucide="rotate-ccw" style="width: 12px; height: 12px;"></i>
+                                <span>Reset All Filters</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Question Bank Summary Header & Pagination Toolbar -->
+                    <div class="bank-toolbar-header" id="bankToolbarHeader">
+                        <div class="bank-count-indicator" id="bankCountIndicator">
+                            Showing <strong id="bankShownCount">420</strong> questions
+                        </div>
+                        <div class="bank-pagination-controls" id="bankPaginationControls">
+                            <!-- Injected dynamically -->
+                        </div>
                     </div>
 
                     <!-- Question List Container -->
-                    <div id="bankQuestionsContainer">
+                    <div id="bankQuestionsContainer" class="bank-questions-list">
                         <!-- Dynamically populated via JS -->
+                    </div>
+
+                    <!-- Bottom Pagination Bar -->
+                    <div class="bank-bottom-pagination" id="bankBottomPagination" style="margin-top: 1.5rem;">
+                        <!-- Injected dynamically -->
                     </div>
                 </div>
 
@@ -512,6 +564,68 @@
                     <!-- Categories Hierarchy View Grid -->
                     <div class="categories-grid" id="categoriesGrid">
                         <!-- Dynamic Subject and Module Accordions injected via JS -->
+                    </div>
+                </div>
+
+                <!-- =========================================================
+                     VIEW 5: STUDY MATERIAL & THEORY (#study)
+                     ========================================================= -->
+                <div class="view-section" id="viewStudy" style="display: none;">
+                    <!-- Study Material Cards Hub (List of 7 Subjects) -->
+                    <div id="studyHubContainer">
+                        <div class="page-title-banner">
+                            <div class="title-group">
+                                <h2 class="page-heading">University of Mumbai AI&DS Study Material</h2>
+                                <p class="page-subheading">Comprehensive theory, core concepts, formulas, exam tips, and syllabus notes for Semester V (2026-27).</p>
+                            </div>
+                            <div class="action-group">
+                                <div class="study-search-wrap">
+                                    <i data-lucide="search" class="study-search-icon"></i>
+                                    <input type="text" id="studyHubSearch" class="form-control study-search-input" placeholder="Search concepts, formulas, topics...">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Grid of 7 Subject Theory Cards -->
+                        <div class="study-subjects-grid" id="studySubjectsGrid">
+                            <!-- Injected dynamically via JS -->
+                        </div>
+                    </div>
+
+                    <!-- Subject Theory Reader View (Detail View for a Selected Subject) -->
+                    <div id="studyReaderContainer" style="display: none;">
+                        <div class="study-reader-header">
+                            <button class="btn btn-secondary btn-sm" id="btnBackToStudyHub" onclick="backToStudyHub()">
+                                <i data-lucide="arrow-left" class="btn-icon"></i>
+                                <span>Back to Subjects</span>
+                            </button>
+                            <div class="study-reader-title-box">
+                                <span class="study-subject-code-badge" id="readerSubjectCode">2015111</span>
+                                <h2 class="study-reader-title" id="readerSubjectTitle">Subject Name</h2>
+                            </div>
+                            <div class="study-reader-actions">
+                                <button class="btn btn-primary btn-sm" id="btnPracticeFromReader" onclick="practiceCurrentSubjectQuiz()">
+                                    <i data-lucide="play-circle" class="btn-icon"></i>
+                                    <span>Practice Subject Quiz</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Two column Reader Layout: Sticky Module Navigator Sidebar + Content Stream -->
+                        <div class="study-reader-layout">
+                            <!-- Left: Topic Navigator Nav -->
+                            <aside class="study-reader-nav" id="studyReaderNav">
+                                <div class="study-nav-heading">TABLE OF CONTENTS</div>
+                                <div class="study-nav-links" id="studyNavLinks">
+                                    <!-- Injected dynamically -->
+                                </div>
+                            </aside>
+
+                            <!-- Right: Structured Content Stream -->
+                            <main class="study-reader-content" id="studyReaderContent">
+                                <!-- Injected dynamically -->
+                            </main>
+                        </div>
                     </div>
                 </div>
 

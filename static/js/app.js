@@ -5,9 +5,12 @@
 
 // Global State
 const state = {
-    currentView: 'questions', // 'dashboard' | 'bank' | 'questions' | 'categories'
+    currentView: 'questions', // 'dashboard' | 'bank' | 'questions' | 'categories' | 'study'
     questions: [],
     syllabus: null,
+    topicMap: null,         // Loaded from /api/topic-map: subject -> mod_num -> {syl_topic -> [q_topics]}
+    studyMaterials: [],
+    currentStudySubject: null,
     
     // Filters for Question Bank view
     bankFilters: {
@@ -17,6 +20,9 @@ const state = {
         questionType: 'all',
         searchQuery: ''
     },
+
+    // Study material search filter
+    studySearchQuery: '',
 
     // Quiz Configuration & Session State
     quizConfig: {
@@ -54,6 +60,7 @@ const DOM = {
     viewBank: document.getElementById('viewBank'),
     viewQuestions: document.getElementById('viewQuestions'),
     viewCategories: document.getElementById('viewCategories'),
+    viewStudy: document.getElementById('viewStudy'),
     headerBreadcrumbCurrent: document.getElementById('headerBreadcrumbCurrent'),
 
     // Navigation
@@ -61,9 +68,23 @@ const DOM = {
     navBank: document.getElementById('navBank'),
     navQuestions: document.getElementById('navQuestions'),
     navCategories: document.getElementById('navCategories'),
+    navStudy: document.getElementById('navStudy'),
     navQuestionCount: document.getElementById('navQuestionCount'),
     navBankCount: document.getElementById('navBankCount'),
     navCategoryCount: document.getElementById('navCategoryCount'),
+    navStudyCount: document.getElementById('navStudyCount'),
+
+    // Study Material Elements
+    studyHubContainer: document.getElementById('studyHubContainer'),
+    studySubjectsGrid: document.getElementById('studySubjectsGrid'),
+    studyHubSearch: document.getElementById('studyHubSearch'),
+    studyReaderContainer: document.getElementById('studyReaderContainer'),
+    readerSubjectCode: document.getElementById('readerSubjectCode'),
+    readerSubjectTitle: document.getElementById('readerSubjectTitle'),
+    studyNavLinks: document.getElementById('studyNavLinks'),
+    studyReaderContent: document.getElementById('studyReaderContent'),
+    btnBackToStudyHub: document.getElementById('btnBackToStudyHub'),
+    btnPracticeFromReader: document.getElementById('btnPracticeFromReader'),
 
     // Top Header
     topHeaderSearch: document.getElementById('topHeaderSearch'),
@@ -172,6 +193,118 @@ async function fetchSyllabus() {
     } catch (e) {
         console.warn('Failed to load syllabus metadata:', e);
     }
+}
+
+async function fetchStudyMaterials() {
+    try {
+        const res = await fetch('/api/study-material');
+        if (res.ok) {
+            state.studyMaterials = await res.json();
+            if (DOM.navStudyCount) {
+                DOM.navStudyCount.textContent = state.studyMaterials.length;
+            }
+        }
+    } catch (e) {
+        console.warn('Failed to load study materials:', e);
+    }
+}
+
+async function fetchTopicMap() {
+    try {
+        const res = await fetch('/api/topic-map');
+        if (res.ok) {
+            state.topicMap = await res.json();
+        }
+    } catch (e) {
+        console.warn('Failed to load topic map:', e);
+    }
+}
+
+/**
+ * Determines whether a syllabus topic name matches a question's topic string.
+ * Uses: exact match > substring containment > meaningful token overlap.
+ * This is the canonical matching function used everywhere in the app.
+ *
+ * @param {string} syllabusTopic  - Topic name from the syllabus (e.g. "Precision")
+ * @param {string} questionTopic  - Topic stored on the question (e.g. "Precision-Recall curves")
+ * @returns {boolean}
+ */
+function topicsMatch(syllabusTopic, questionTopic) {
+    if (!syllabusTopic || syllabusTopic === 'all') return true;
+    if (!questionTopic) return false;
+
+    const st = syllabusTopic.trim();
+    const qt = questionTopic.trim();
+    const stl = st.toLowerCase();
+    const qtl = qt.toLowerCase();
+
+    // 1. Exact match
+    if (stl === qtl) return true;
+
+    // 2. Substring containment (either direction)
+    if (stl.length >= 3 && qtl.includes(stl)) return true;
+    if (qtl.length >= 3 && stl.includes(qtl)) return true;
+
+    // 3. Token overlap — split on non-alphanumeric, ignore stop-words & short tokens
+    const STOP = new Set(['and','or','of','the','in','for','a','an','to','with','on','by','its','via','is']);
+    const tokenize = s => s.toLowerCase().split(/[^a-z0-9]+/).filter(t => t.length >= 3 && !STOP.has(t));
+    const stTok = new Set(tokenize(st));
+    const qtTok = new Set(tokenize(qt));
+    for (const tok of stTok) {
+        if (qtTok.has(tok)) return true;
+    }
+
+    // 4. If topic map is loaded, use it as ground truth
+    if (state.topicMap) {
+        // Find which question topics this syllabus topic maps to
+        for (const [subject, modMap] of Object.entries(state.topicMap)) {
+            for (const [modNum, topicAliases] of Object.entries(modMap)) {
+                if (topicAliases[st]) {
+                    // st is a known syllabus topic - check against its resolved q_topics
+                    return topicAliases[st].some(t => t.toLowerCase() === qtl);
+                }
+            }
+        }
+    }
+
+    return false;
+}
+
+/**
+ * Given a syllabus topic name, returns all question topics that match it
+ * (using the topic map if available, else falls back to topicsMatch scan).
+ */
+function getMatchingQuestionTopics(syllabusTopic, subject, moduleNumber) {
+    if (!syllabusTopic || syllabusTopic === 'all') return null;
+    if (state.topicMap && subject && subject !== 'all') {
+        const modMap = state.topicMap[subject];
+        if (modMap) {
+            // Check a specific module or all modules
+            const modNums = moduleNumber && moduleNumber !== 'all'
+                ? [String(moduleNumber)]
+                : Object.keys(modMap);
+            const matches = new Set();
+            for (const mn of modNums) {
+                const topicAliases = modMap[mn];
+                if (topicAliases && topicAliases[syllabusTopic]) {
+                    topicAliases[syllabusTopic].forEach(t => matches.add(t));
+                }
+            }
+            if (matches.size > 0) return matches;
+        }
+    }
+    return null; // Fallback: will use topicsMatch() inline
+}
+
+/**
+ * Count how many questions match a given syllabus topic (with fuzzy matching).
+ */
+function countQuestionsForTopic(syllabusTopic, subject, moduleNumber) {
+    if (!syllabusTopic || syllabusTopic === 'all') return state.questions.length;
+    let pool = state.questions;
+    if (subject && subject !== 'all') pool = pool.filter(q => q.subject === subject);
+    if (moduleNumber && moduleNumber !== 'all') pool = pool.filter(q => q.module_number === parseInt(moduleNumber));
+    return pool.filter(q => topicsMatch(syllabusTopic, q.topic || '')).length;
 }
 
 async function fetchQuestions() {
@@ -348,7 +481,10 @@ function updateQuizTopicDropdown() {
             });
 
             Array.from(topics).sort().forEach(t => {
-                html += `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`;
+                const count = countQuestionsForTopic(t, selectedSubName, selectedModNum);
+                const suffix = count > 0 ? ` (${count}Q)` : ' — no Qs';
+                const disabled = count === 0 ? ' disabled style="color: var(--text-muted, #888);"' : '';
+                html += `<option value="${escapeHtml(t)}"${disabled}>${escapeHtml(t)}${suffix}</option>`;
             });
         }
     }
@@ -419,7 +555,7 @@ function updateModalTopicDatalist() {
    ========================================================================== */
 
 function navigateToView(viewName) {
-    const validViews = ['dashboard', 'bank', 'questions', 'categories'];
+    const validViews = ['dashboard', 'bank', 'questions', 'categories', 'study'];
     let target = viewName ? viewName.toLowerCase().replace('#', '') : 'questions';
     if (!validViews.includes(target)) target = 'questions';
 
@@ -430,12 +566,14 @@ function navigateToView(viewName) {
     DOM.viewBank.style.display = 'none';
     DOM.viewQuestions.style.display = 'none';
     DOM.viewCategories.style.display = 'none';
+    if (DOM.viewStudy) DOM.viewStudy.style.display = 'none';
 
     // Unset active nav
     DOM.navDashboard.classList.remove('active');
     DOM.navBank.classList.remove('active');
     DOM.navQuestions.classList.remove('active');
     DOM.navCategories.classList.remove('active');
+    if (DOM.navStudy) DOM.navStudy.classList.remove('active');
 
     if (target === 'dashboard') {
         DOM.viewDashboard.style.display = 'block';
@@ -452,6 +590,11 @@ function navigateToView(viewName) {
         DOM.navCategories.classList.add('active');
         DOM.headerBreadcrumbCurrent.textContent = 'Syllabus & Subjects';
         renderCategoriesView();
+    } else if (target === 'study') {
+        if (DOM.viewStudy) DOM.viewStudy.style.display = 'block';
+        if (DOM.navStudy) DOM.navStudy.classList.add('active');
+        DOM.headerBreadcrumbCurrent.textContent = 'Study Material & Theory';
+        renderStudyHubView();
     } else {
         DOM.viewQuestions.style.display = 'block';
         DOM.navQuestions.classList.add('active');
@@ -557,6 +700,9 @@ function renderDashboardView() {
    5. Question Bank Explorer View
    ========================================================================== */
 
+// Bank pagination state
+const bankPagination = { page: 1, perPage: 25 };
+
 function renderBankView() {
     const container = DOM.bankQuestionsContainer;
     if (!container) return;
@@ -590,7 +736,7 @@ function renderBankView() {
     // Keyword Search Filter
     if (state.bankFilters.searchQuery) {
         const query = state.bankFilters.searchQuery.toLowerCase();
-        filtered = filtered.filter(q => 
+        filtered = filtered.filter(q =>
             (q.question || '').toLowerCase().includes(query) ||
             (q.topic || '').toLowerCase().includes(query) ||
             (q.subject || '').toLowerCase().includes(query) ||
@@ -605,7 +751,7 @@ function renderBankView() {
                     <i data-lucide="search-x"></i>
                 </div>
                 <h4 class="state-title">No questions found</h4>
-                <p class="state-desc">No questions in the active bank match the selected filters. Try broadening your criteria.</p>
+                <p class="state-desc">No questions match the selected filters. Try broadening your criteria.</p>
                 <div class="state-actions">
                     <button class="btn btn-secondary" onclick="resetBankFilters()">
                         <i data-lucide="rotate-ccw" class="btn-icon"></i>
@@ -618,42 +764,125 @@ function renderBankView() {
         return;
     }
 
-    container.innerHTML = `
-        <div style="font-size: 0.82rem; font-weight: 600; color: var(--text-muted); margin-bottom: 0.75rem;">
-            Showing <strong>${filtered.length}</strong> of <strong>${state.questions.length}</strong> total questions
-        </div>
-    ` + filtered.map(q => {
+    // Pagination
+    const totalPages = Math.max(1, Math.ceil(filtered.length / bankPagination.perPage));
+    if (bankPagination.page > totalPages) bankPagination.page = 1;
+    const start = (bankPagination.page - 1) * bankPagination.perPage;
+    const pageItems = filtered.slice(start, start + bankPagination.perPage);
+
+    // Difficulty color map
+    const diffColor = { easy: 'var(--emerald-500)', medium: 'var(--amber-500)', hard: 'var(--rose-500)' };
+    const diffBg = { easy: 'rgba(16,185,129,0.1)', medium: 'rgba(245,158,11,0.1)', hard: 'rgba(239,68,68,0.1)' };
+
+    const optLabel = ['A', 'B', 'C', 'D'];
+
+    const cards = pageItems.map(q => {
         const diff = (q.difficulty || 'medium').toLowerCase();
-        const qType = (q.question_type || 'conceptual').toLowerCase().replace('_', ' ');
+        const qType = (q.question_type || 'conceptual').toLowerCase().replace(/_/g, ' ');
         const subName = q.subject || 'General';
-        const modName = q.module_number ? `Mod ${q.module_number}` : '';
         const topicName = q.topic || '';
+        const modNum = q.module_number;
+
+        const opts = [q.option_a, q.option_b, q.option_c, q.option_d];
 
         return `
-            <div class="bank-q-card" onclick="openViewQuestionModalById(${q.id})">
-                <div class="bank-q-header">
-                    <div class="bank-q-badges">
-                        <span class="badge-index">#${q.id}</span>
-                        <span class="badge-subject">${escapeHtml(subName)}</span>
-                        ${modName ? `<span class="badge-module">${escapeHtml(modName)}</span>` : ''}
-                        ${topicName ? `<span class="badge-topic">${escapeHtml(topicName)}</span>` : ''}
-                        <span class="badge-type">${escapeHtml(qType)}</span>
-                        <span class="badge-difficulty ${diff}">${capitalize(diff)}</span>
+            <div class="bank-q-card-v2" onclick="openViewQuestionModalById(${q.id})">
+                <!-- Card Header: Subject hierarchy -->
+                <div class="bq-header">
+                    <div class="bq-meta-chain">
+                        <span class="bq-id">#${q.id}</span>
+                        <span class="bq-sep">›</span>
+                        <span class="bq-subject" title="${escapeHtml(subName)}">${escapeHtml(subName)}</span>
+                        ${modNum ? `<span class="bq-sep">›</span><span class="bq-module">Module ${modNum}</span>` : ''}
+                        ${topicName ? `<span class="bq-sep">›</span><span class="bq-topic">${escapeHtml(topicName)}</span>` : ''}
+                    </div>
+                    <div class="bq-badges-right">
+                        <span class="bq-type-badge">${escapeHtml(qType)}</span>
+                        <span class="bq-diff-badge" style="background:${diffBg[diff]||diffBg.medium}; color:${diffColor[diff]||diffColor.medium};">${capitalize(diff)}</span>
                     </div>
                 </div>
-                <div class="bank-q-text">${escapeHtml(q.question)}</div>
-                <div class="bank-q-options-preview">
-                    <div class="bank-q-opt-pill ${q.answer === 'A' ? 'correct' : ''}"><strong>A:</strong> ${escapeHtml(q.option_a)}</div>
-                    <div class="bank-q-opt-pill ${q.answer === 'B' ? 'correct' : ''}"><strong>B:</strong> ${escapeHtml(q.option_b)}</div>
-                    <div class="bank-q-opt-pill ${q.answer === 'C' ? 'correct' : ''}"><strong>C:</strong> ${escapeHtml(q.option_c)}</div>
-                    <div class="bank-q-opt-pill ${q.answer === 'D' ? 'correct' : ''}"><strong>D:</strong> ${escapeHtml(q.option_d)}</div>
+
+                <!-- Question Text -->
+                <div class="bq-question-text">${escapeHtml(q.question)}</div>
+
+                <!-- Options Grid -->
+                <div class="bq-options-grid">
+                    ${opts.map((opt, i) => {
+                        const letter = optLabel[i];
+                        const isCorrect = q.answer === letter;
+                        return `
+                            <div class="bq-opt ${isCorrect ? 'bq-opt-correct' : ''}">
+                                <span class="bq-opt-letter ${isCorrect ? 'correct' : ''}">${letter}</span>
+                                <span class="bq-opt-text">${escapeHtml(opt || '')}</span>
+                                ${isCorrect ? '<span class="bq-opt-check"><i data-lucide="check" style="width:12px;height:12px;"></i></span>' : ''}
+                            </div>
+                        `;
+                    }).join('')}
                 </div>
             </div>
         `;
     }).join('');
 
+    // Pagination controls
+    const paginationHtml = totalPages > 1 ? `
+        <div class="bq-pagination">
+            <button class="bq-page-btn" onclick="bankGoToPage(${bankPagination.page - 1})" ${bankPagination.page <= 1 ? 'disabled' : ''}>
+                <i data-lucide="chevron-left" style="width:16px;height:16px;"></i>
+            </button>
+            <div class="bq-page-info">
+                Page <strong>${bankPagination.page}</strong> of <strong>${totalPages}</strong>
+                <span style="color:var(--text-muted); font-size:0.78rem;">— ${filtered.length} questions</span>
+            </div>
+            <button class="bq-page-btn" onclick="bankGoToPage(${bankPagination.page + 1})" ${bankPagination.page >= totalPages ? 'disabled' : ''}>
+                <i data-lucide="chevron-right" style="width:16px;height:16px;"></i>
+            </button>
+        </div>
+    ` : '';
+
+    container.innerHTML = `
+        <div class="bq-stats-bar">
+            <span>Showing <strong>${start + 1}–${Math.min(start + bankPagination.perPage, filtered.length)}</strong> of <strong>${filtered.length}</strong> questions</span>
+            ${filtered.length !== state.questions.length ? `<span style="color:var(--primary-500); font-size:0.78rem;">(filtered from ${state.questions.length} total)</span>` : ''}
+        </div>
+        ${cards}
+        ${paginationHtml}
+    `;
+
     lucide.createIcons();
 }
+
+function bankGoToPage(page) {
+    const totalFiltered = getBankFilteredCount();
+    const totalPages = Math.max(1, Math.ceil(totalFiltered / bankPagination.perPage));
+    bankPagination.page = Math.max(1, Math.min(page, totalPages));
+    renderBankView();
+    // Scroll to top of bank container
+    const container = DOM.bankQuestionsContainer;
+    if (container) container.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function getBankFilteredCount() {
+    // Lightweight filter count without re-rendering
+    let filtered = state.questions;
+    const subFilter = DOM.bankSubjectFilter ? DOM.bankSubjectFilter.value : 'all';
+    if (subFilter !== 'all') filtered = filtered.filter(q => q.subject === subFilter);
+    const modFilter = DOM.bankModuleFilter ? DOM.bankModuleFilter.value : 'all';
+    if (modFilter !== 'all') filtered = filtered.filter(q => q.module_number === parseInt(modFilter));
+    const diffFilter = DOM.bankDiffFilter ? DOM.bankDiffFilter.value : 'all';
+    if (diffFilter !== 'all') filtered = filtered.filter(q => (q.difficulty||'').toLowerCase() === diffFilter.toLowerCase());
+    const typeFilter = DOM.bankTypeFilter ? DOM.bankTypeFilter.value : 'all';
+    if (typeFilter !== 'all') filtered = filtered.filter(q => (q.question_type||'').toLowerCase() === typeFilter.toLowerCase());
+    if (state.bankFilters.searchQuery) {
+        const query = state.bankFilters.searchQuery.toLowerCase();
+        filtered = filtered.filter(q =>
+            (q.question||'').toLowerCase().includes(query) ||
+            (q.topic||'').toLowerCase().includes(query) ||
+            (q.subject||'').toLowerCase().includes(query)
+        );
+    }
+    return filtered.length;
+}
+
 
 function resetBankFilters() {
     if (DOM.bankSubjectFilter) DOM.bankSubjectFilter.value = 'all';
@@ -662,6 +891,7 @@ function resetBankFilters() {
     if (DOM.bankTypeFilter) DOM.bankTypeFilter.value = 'all';
     if (DOM.topHeaderSearch) DOM.topHeaderSearch.value = '';
     state.bankFilters.searchQuery = '';
+    bankPagination.page = 1;
     renderBankView();
 }
 
@@ -729,10 +959,18 @@ function renderCategoriesView() {
                                     <div class="module-name">${escapeHtml(m.module)}</div>
                                     <div style="font-size: 0.72rem; font-weight: 700; color: var(--text-muted); margin-top: 0.5rem;">Topics (${(m.topics || []).length}):</div>
                                     <div class="topic-tags-cloud">
-                                        ${(m.topics || []).slice(0, 8).map(t => `
-                                            <span class="topic-pill" onclick="startQuizForTopic('${escapeHtml(s.subject)}', ${m.module_number}, '${escapeHtml(t)}')">${escapeHtml(t)}</span>
-                                        `).join('')}
-                                        ${(m.topics || []).length > 8 ? `<span style="font-size: 0.7rem; color: var(--text-muted); align-self: center;">+${m.topics.length - 8} more</span>` : ''}
+                                        ${(m.topics || []).slice(0, 10).map(t => {
+                                            const qCount = countQuestionsForTopic(t, s.subject, m.module_number);
+                                            const hasQs = qCount > 0;
+                                            const pillClass = hasQs ? 'topic-pill has-questions' : 'topic-pill no-questions';
+                                            const pillTitle = hasQs ? `${qCount} question${qCount !== 1 ? 's' : ''} available — click to quiz` : 'No questions yet for this topic';
+                                            return `<span 
+                                                class="${pillClass}" 
+                                                title="${pillTitle}"
+                                                onclick="${hasQs ? `startQuizForTopic('${escapeHtml(s.subject)}', ${m.module_number}, '${escapeHtml(t)}')` : 'void(0)'}"
+                                            >${escapeHtml(t)}${hasQs ? `<sup class="topic-pill-count">${qCount}</sup>` : ''}</span>`;
+                                        }).join('')}
+                                        ${(m.topics || []).length > 10 ? `<span style="font-size: 0.7rem; color: var(--text-muted); align-self: center;">+${m.topics.length - 10} more</span>` : ''}
                                     </div>
                                 </div>
                             `;
@@ -788,7 +1026,15 @@ function initializeQuiz() {
         pool = pool.filter(q => q.module_number === parseInt(modTarget));
     }
     if (topicTarget !== 'all') {
-        pool = pool.filter(q => (q.topic || '').toLowerCase() === topicTarget.toLowerCase());
+        // Use topic-map-aware fuzzy matching instead of exact string equality
+        const matchingQTopics = getMatchingQuestionTopics(topicTarget, subTarget, modTarget);
+        if (matchingQTopics) {
+            // Fast path: topic-map resolved specific question topics
+            pool = pool.filter(q => matchingQTopics.has(q.topic || ''));
+        } else {
+            // Fallback path: inline fuzzy matching
+            pool = pool.filter(q => topicsMatch(topicTarget, q.topic || ''));
+        }
     }
     if (diffTarget !== 'all') {
         pool = pool.filter(q => (q.difficulty || '').toLowerCase() === diffTarget.toLowerCase());
@@ -1529,6 +1775,21 @@ function setupEventListeners() {
         navigateToView('categories');
     });
 
+    if (DOM.navStudy) {
+        DOM.navStudy.addEventListener('click', (e) => {
+            e.preventDefault();
+            window.location.hash = '#study';
+            navigateToView('study');
+        });
+    }
+
+    if (DOM.studyHubSearch) {
+        DOM.studyHubSearch.addEventListener('input', (e) => {
+            state.studySearchQuery = e.target.value.toLowerCase().trim();
+            renderStudyHubView();
+        });
+    }
+
     // Modals
     DOM.btnOpenNewQuestionModal.addEventListener('click', openQuestionModal);
     DOM.closeModalBtn.addEventListener('click', closeQuestionModal);
@@ -1574,17 +1835,19 @@ function setupEventListeners() {
     if (DOM.bankSubjectFilter) {
         DOM.bankSubjectFilter.addEventListener('change', () => {
             updateBankModuleDropdown();
+            bankPagination.page = 1;
             renderBankView();
         });
     }
-    if (DOM.bankModuleFilter) DOM.bankModuleFilter.addEventListener('change', renderBankView);
-    if (DOM.bankDiffFilter) DOM.bankDiffFilter.addEventListener('change', renderBankView);
-    if (DOM.bankTypeFilter) DOM.bankTypeFilter.addEventListener('change', renderBankView);
+    if (DOM.bankModuleFilter) DOM.bankModuleFilter.addEventListener('change', () => { bankPagination.page = 1; renderBankView(); });
+    if (DOM.bankDiffFilter) DOM.bankDiffFilter.addEventListener('change', () => { bankPagination.page = 1; renderBankView(); });
+    if (DOM.bankTypeFilter) DOM.bankTypeFilter.addEventListener('change', () => { bankPagination.page = 1; renderBankView(); });
 
     // Global Top Search Bar
     if (DOM.topHeaderSearch) {
         DOM.topHeaderSearch.addEventListener('input', (e) => {
             state.bankFilters.searchQuery = e.target.value;
+            bankPagination.page = 1;
             if (state.currentView !== 'bank') {
                 window.location.hash = '#bank';
                 navigateToView('bank');
@@ -1648,6 +1911,224 @@ function setupEventListeners() {
     });
 }
 
+/* ==========================================================================
+   11. Study Material Render Logic
+   ========================================================================== */
+
+function renderStudyHubView() {
+    const grid = DOM.studySubjectsGrid;
+    if (!grid) return;
+
+    if (!state.studyMaterials || state.studyMaterials.length === 0) {
+        grid.innerHTML = `<div style="grid-column: 1/-1; text-align: center; padding: 2rem; color: var(--text-muted);">Loading study materials...</div>`;
+        return;
+    }
+
+    let list = [...state.studyMaterials];
+    const q = state.studySearchQuery;
+
+    if (q) {
+        list = list.filter(item => 
+            item.subject.toLowerCase().includes(q) ||
+            item.subject_code.toLowerCase().includes(q) ||
+            item.description.toLowerCase().includes(q)
+        );
+    }
+
+    if (list.length === 0) {
+        grid.innerHTML = `
+            <div style="grid-column: 1/-1; text-align: center; padding: 3rem; background: var(--bg-surface); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg);">
+                <i data-lucide="search-x" style="width: 48px; height: 48px; color: var(--text-muted); margin-bottom: 0.75rem;"></i>
+                <h4 style="font-weight: 700; color: var(--text-primary); margin-bottom: 0.35rem;">No Study Material Found</h4>
+                <p style="font-size: 0.85rem; color: var(--text-muted);">No subjects match "${escapeHtml(q)}".</p>
+            </div>
+        `;
+        lucide.createIcons();
+        return;
+    }
+
+    grid.innerHTML = list.map(sub => {
+        const catClass = sub.category === 'Core Course' ? 'tag-core' : sub.category === 'Program Elective-I' ? 'tag-elective' : 'tag-other';
+        return `
+            <div class="study-card">
+                <div>
+                    <div class="study-card-top">
+                        <span class="study-code-pill">${escapeHtml(sub.subject_code)}</span>
+                        <span class="syllabus-tag-category ${catClass}">${escapeHtml(sub.category || 'Core')}</span>
+                    </div>
+                    <h3 class="study-card-title">${escapeHtml(sub.subject)}</h3>
+                    <p class="study-card-desc">${escapeHtml(sub.description || 'Comprehensive University of Mumbai Sem V syllabus study notes and concept deep dives.')}</p>
+                </div>
+                <div>
+                    <div class="study-stats-row">
+                        <div class="study-stat-item">
+                            <i data-lucide="layers"></i>
+                            <span>${sub.total_modules || 3} Modules</span>
+                        </div>
+                        <div class="study-stat-item">
+                            <i data-lucide="bookmark"></i>
+                            <span>${sub.total_topics || 5} Topics</span>
+                        </div>
+                    </div>
+                    <div class="study-card-actions">
+                        <button class="btn btn-primary btn-sm" style="flex: 1;" onclick="openStudyReader('${sub.subject_code}')">
+                            <i data-lucide="book-open" class="btn-icon"></i>
+                            <span>Read Theory</span>
+                        </button>
+                        <button class="btn btn-secondary btn-sm" title="Practice Subject MCQs" onclick="startQuizForSubject('${escapeHtml(sub.subject)}')">
+                            <i data-lucide="play-circle" class="btn-icon"></i>
+                            <span>Practice</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+    }).join('');
+
+    lucide.createIcons();
+}
+
+async function openStudyReader(subjectCode) {
+    try {
+        const res = await fetch(`/api/study-material/${subjectCode}`);
+        if (!res.ok) throw new Error('Subject not found');
+        const data = await res.json();
+        state.currentStudySubject = data;
+
+        if (DOM.studyHubContainer) DOM.studyHubContainer.style.display = 'none';
+        if (DOM.studyReaderContainer) DOM.studyReaderContainer.style.display = 'block';
+
+        if (DOM.readerSubjectCode) DOM.readerSubjectCode.textContent = data.subject_code;
+        if (DOM.readerSubjectTitle) DOM.readerSubjectTitle.textContent = data.subject;
+
+        renderStudyReaderNav(data);
+        renderStudyReaderContent(data);
+
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        lucide.createIcons();
+
+    } catch (err) {
+        console.error('Failed to load study reader:', err);
+        showToast('Error', 'Could not load study material for ' + subjectCode, 'error');
+    }
+}
+
+function backToStudyHub() {
+    if (DOM.studyReaderContainer) DOM.studyReaderContainer.style.display = 'none';
+    if (DOM.studyHubContainer) DOM.studyHubContainer.style.display = 'block';
+    state.currentStudySubject = null;
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function practiceCurrentSubjectQuiz() {
+    if (state.currentStudySubject) {
+        startQuizForSubject(state.currentStudySubject.subject);
+    }
+}
+
+function renderStudyReaderNav(subjectData) {
+    const nav = DOM.studyNavLinks;
+    if (!nav) return;
+
+    let html = '';
+    (subjectData.modules || []).forEach(mod => {
+        html += `
+            <a href="#study-mod-${mod.module_number}" class="study-nav-link" onclick="event.preventDefault(); document.getElementById('study-mod-${mod.module_number}').scrollIntoView({behavior: 'smooth'});">
+                <i data-lucide="chevron-right" style="width: 14px; height: 14px;"></i>
+                <span>Module ${mod.module_number}: ${escapeHtml(mod.module_name)}</span>
+            </a>
+        `;
+    });
+
+    nav.innerHTML = html;
+}
+
+function renderStudyReaderContent(subjectData) {
+    const container = DOM.studyReaderContent;
+    if (!container) return;
+
+    let html = '';
+    (subjectData.modules || []).forEach(mod => {
+        html += `
+            <section class="study-module-section" id="study-mod-${mod.module_number}">
+                <div class="study-module-header">
+                    <div class="study-module-tag">Module ${mod.module_number}</div>
+                    <h3 class="study-module-title">${escapeHtml(mod.module_name)}</h3>
+                </div>
+
+                <div class="study-topics-list">
+                    ${(mod.topics || []).map(t => {
+                        return `
+                            <div class="study-topic-card" id="study-topic-${t.topic_id || ''}">
+                                <div class="study-topic-title">
+                                    <span>${escapeHtml(t.topic_title)}</span>
+                                    <button class="btn btn-secondary btn-sm" onclick="startQuizForTopic('${escapeHtml(subjectData.subject)}', '${escapeHtml(t.topic_title)}')">
+                                        <i data-lucide="play-circle" class="btn-icon"></i>
+                                        <span>Practice Topic</span>
+                                    </button>
+                                </div>
+                                <div class="study-topic-summary">${escapeHtml(t.summary)}</div>
+
+                                <div class="study-blocks-grid">
+                                    ${t.key_concepts && t.key_concepts.length > 0 ? `
+                                        <div class="study-block block-key-concepts">
+                                            <div class="study-block-header">
+                                                <i data-lucide="check-circle" style="width: 15px; height: 15px;"></i>
+                                                <span>Core Concepts</span>
+                                            </div>
+                                            <ul class="study-block-list">
+                                                ${t.key_concepts.map(item => `<li>${escapeHtml(item)}</li>`).join('')}
+                                            </ul>
+                                        </div>
+                                    ` : ''}
+
+                                    ${t.exam_tips && t.exam_tips.length > 0 ? `
+                                        <div class="study-block block-exam-tips">
+                                            <div class="study-block-header">
+                                                <i data-lucide="zap" style="width: 15px; height: 15px;"></i>
+                                                <span>Mumbai Univ Exam Tips</span>
+                                            </div>
+                                            <ul class="study-block-list">
+                                                ${t.exam_tips.map(item => `<li>${escapeHtml(item)}</li>`).join('')}
+                                            </ul>
+                                        </div>
+                                    ` : ''}
+
+                                    ${t.formulas_and_rules && t.formulas_and_rules.length > 0 ? `
+                                        <div class="study-block block-formulas">
+                                            <div class="study-block-header">
+                                                <i data-lucide="sigma" style="width: 15px; height: 15px;"></i>
+                                                <span>Formulas & Key Rules</span>
+                                            </div>
+                                            <div class="study-block-formulas">
+                                                ${t.formulas_and_rules.map(item => `<div class="study-formula-box">${escapeHtml(item)}</div>`).join('')}
+                                            </div>
+                                        </div>
+                                    ` : ''}
+
+                                    ${t.common_mistakes && t.common_mistakes.length > 0 ? `
+                                        <div class="study-block block-common-mistakes">
+                                            <div class="study-block-header">
+                                                <i data-lucide="alert-triangle" style="width: 15px; height: 15px;"></i>
+                                                <span>Common Pitfalls</span>
+                                            </div>
+                                            <ul class="study-block-list">
+                                                ${t.common_mistakes.map(item => `<li>${escapeHtml(item)}</li>`).join('')}
+                                            </ul>
+                                        </div>
+                                    ` : ''}
+                                </div>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+            </section>
+        `;
+    });
+
+    container.innerHTML = html;
+}
+
 function escapeHtml(str) {
     if (!str) return '';
     const div = document.createElement('div');
@@ -1670,14 +2151,20 @@ window.nextQuestion = nextQuestion;
 window.finishQuiz = finishQuiz;
 window.restartQuiz = restartQuiz;
 window.resetBankFilters = resetBankFilters;
+window.bankGoToPage = bankGoToPage;
 window.resetQuizFilters = resetQuizFilters;
 window.initializeQuiz = initializeQuiz;
 window.startQuizForSubject = startQuizForSubject;
 window.startQuizForTopic = startQuizForTopic;
 window.navigateToView = navigateToView;
+window.openStudyReader = openStudyReader;
+window.backToStudyHub = backToStudyHub;
+window.practiceCurrentSubjectQuiz = practiceCurrentSubjectQuiz;
 window.retryConnection = async function() {
     await checkHealth();
     await fetchSyllabus();
+    await fetchStudyMaterials();
+    await fetchTopicMap();
     await fetchQuestions();
 };
 
@@ -1686,6 +2173,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     setupEventListeners();
 
     await fetchSyllabus();
+    await fetchStudyMaterials();
+    await fetchTopicMap();
     await checkHealth();
     await fetchQuestions();
 
@@ -1694,3 +2183,4 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     setInterval(checkHealth, 20000);
 });
+

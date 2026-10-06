@@ -7,6 +7,10 @@ from app import app, questions_db
 def client():
     """Create a Flask test client for the application."""
     app.config['TESTING'] = True
+    # Reset in-memory database to initial seeded questions for clean test runs
+    import app as app_module
+    app_module.questions_db = app_module._load_initial_questions()
+    app_module.next_id = max([q["id"] for q in app_module.questions_db] + [0]) + 1
     with app.test_client() as client:
         yield client
 
@@ -199,3 +203,87 @@ def test_metrics_endpoint(client):
     text_data = response.data.decode('utf-8')
     assert "flask_http_requests_total" in text_data
     assert "quizbank_questions_total" in text_data
+
+
+def test_get_study_material_endpoint(client):
+    """Test GET /api/study-material returns all 7 subjects."""
+    response = client.get('/api/study-material')
+    assert response.status_code == 200
+    data = json.loads(response.data)
+    assert isinstance(data, list)
+    assert len(data) == 7
+    codes = [s["subject_code"] for s in data]
+    assert "2015111" in codes
+    assert "2015112" in codes
+    assert "2015113" in codes
+    assert "2015114" in codes
+    assert "2015115" in codes
+    assert "2015116" in codes
+    assert "2015511" in codes
+
+
+def test_get_study_material_detail(client):
+    """Test GET /api/study-material/<code_id> returns subject modules and topics."""
+    response = client.get('/api/study-material/2015111')
+    assert response.status_code == 200
+    data = json.loads(response.data)
+    assert data["subject_code"] == "2015111"
+    assert "modules" in data
+    assert len(data["modules"]) >= 1
+    # Test 404 on invalid code
+    response_404 = client.get('/api/study-material/9999999')
+    assert response_404.status_code == 404
+
+
+def test_mcq_answer_distribution(client):
+    """Verify that correct answers are balanced across A, B, C, D in the 420-question bank."""
+    response = client.get('/items')
+    assert response.status_code == 200
+    questions = json.loads(response.data)
+    assert len(questions) == 420
+
+    counts = {'A': 0, 'B': 0, 'C': 0, 'D': 0}
+    for q in questions:
+        ans = q.get('answer', '')
+        assert ans in ['A', 'B', 'C', 'D'], f"Invalid answer key '{ans}' in Q ID {q.get('id')}"
+        counts[ans] += 1
+
+    # Check each option has approx 25% (exactly 105 for 420 questions)
+    assert counts['A'] == 105
+    assert counts['B'] == 105
+    assert counts['C'] == 105
+    assert counts['D'] == 105
+
+
+def test_all_questions_integrity(client):
+    """Verify integrity of all 420 questions: non-empty distinct options, explanation, valid IDs."""
+    response = client.get('/items')
+    assert response.status_code == 200
+    questions = json.loads(response.data)
+
+    seen_ids = set()
+    for q in questions:
+        q_id = q['id']
+        assert q_id not in seen_ids, f"Duplicate ID: {q_id}"
+        seen_ids.add(q_id)
+
+        # 4 distinct non-empty options
+        opts = [q['option_a'], q['option_b'], q['option_c'], q['option_d']]
+        assert len(set(opts)) == 4, f"Duplicate options in Q ID {q_id}"
+        assert all(len(o.strip()) > 0 for o in opts), f"Empty option in Q ID {q_id}"
+
+        # Answer key points to valid option
+        ans_key = q['answer']
+        ans_opt_key = f"option_{ans_key.lower()}"
+        assert ans_opt_key in q, f"Option key {ans_opt_key} missing in Q ID {q_id}"
+        assert len(q[ans_opt_key].strip()) > 0, f"Correct option empty in Q ID {q_id}"
+
+        # Explanation exists
+        assert len(q.get('explanation', '').strip()) > 5, f"Missing explanation in Q ID {q_id}"
+
+        # Subject and module validation
+        assert len(q.get('subject', '').strip()) > 0
+        assert len(q.get('subject_code', '').strip()) > 0
+        assert 1 <= q.get('module_number', 0) <= 6
+
+
