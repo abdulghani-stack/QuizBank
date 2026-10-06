@@ -1,0 +1,713 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QuizBank — University of Mumbai T.E. AI&DS (2026-27) Question Bank</title>
+    <meta name="description" content="Official Syllabus-Driven MCQ Question Bank and Interactive Quiz Engine for University of Mumbai T.E. Artificial Intelligence & Data Science (Sem V, 2026-27).">
+    <!-- Google Fonts: Plus Jakarta Sans & Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <div class="app-layout">
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <div class="brand-logo">
+                    <div class="brand-icon">
+                        <i data-lucide="graduation-cap"></i>
+                    </div>
+                    <div class="brand-info">
+                        <h1 class="brand-title">QuizBank</h1>
+                        <span class="brand-subtitle">Mumbai Univ • TE AI&DS</span>
+                    </div>
+                </div>
+                <button class="mobile-sidebar-close" id="mobileSidebarClose" aria-label="Close Sidebar">
+                    <i data-lucide="x"></i>
+                </button>
+            </div>
+
+            <div class="nav-section-label">MAIN NAVIGATION</div>
+            <nav class="sidebar-nav">
+                <a href="#dashboard" class="nav-item" id="navDashboard" data-view="dashboard">
+                    <i data-lucide="layout-dashboard"></i>
+                    <span>Dashboard</span>
+                </a>
+                <a href="#bank" class="nav-item" id="navBank" data-view="bank">
+                    <i data-lucide="database"></i>
+                    <span>Question Bank</span>
+                    <span class="nav-badge" id="navBankCount">0</span>
+                </a>
+                <a href="#questions" class="nav-item active" id="navQuestions" data-view="questions">
+                    <i data-lucide="play-circle"></i>
+                    <span>Quiz Mode</span>
+                    <span class="nav-badge" id="navQuestionCount">0</span>
+                </a>
+                <a href="#categories" class="nav-item" id="navCategories" data-view="categories">
+                    <i data-lucide="folder-tree"></i>
+                    <span>Syllabus & Subjects</span>
+                    <span class="nav-badge" id="navCategoryCount">7</span>
+                </a>
+                <a href="javascript:void(0)" class="nav-item disabled" id="navSettings" title="Academic Year 2026-27" tabindex="-1">
+                    <i data-lucide="book-marked"></i>
+                    <span>Sem V (2026-27)</span>
+                    <span class="nav-tag-disabled">Official</span>
+                </a>
+            </nav>
+
+            <!-- Bottom API Status Panel in Sidebar -->
+            <div class="sidebar-footer">
+                <div class="api-health-card" id="sidebarHealthCard">
+                    <div class="health-header">
+                        <div class="health-status-indicator" id="healthIndicator">
+                            <span class="status-dot pulsing"></span>
+                            <span class="status-label" id="healthStatusText">Checking API...</span>
+                        </div>
+                        <button class="btn-icon-subtle" id="refreshHealthBtn" title="Refresh API Status">
+                            <i data-lucide="rotate-cw"></i>
+                        </button>
+                    </div>
+                    <div class="health-details">
+                        <span class="health-meta" id="healthMeta">Endpoint: <code>/health</code></span>
+                        <span class="health-ping" id="healthPing">- ms</span>
+                    </div>
+                </div>
+
+                <div class="devops-info-badge">
+                    <i data-lucide="award"></i>
+                    <span>Mumbai Univ • AI & DS (Sem V)</span>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Sidebar Overlay for mobile -->
+        <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+        <!-- Main Wrapper -->
+        <div class="main-wrapper">
+            <!-- Top Header -->
+            <header class="top-header">
+                <div class="header-left">
+                    <button class="mobile-menu-toggle" id="mobileMenuToggle" aria-label="Open Navigation">
+                        <i data-lucide="menu"></i>
+                    </button>
+                    <div class="breadcrumb-container">
+                        <span class="breadcrumb-root">Mumbai Univ AI&DS</span>
+                        <i data-lucide="chevron-right" class="breadcrumb-sep"></i>
+                        <span class="breadcrumb-current" id="headerBreadcrumbCurrent">Quiz Mode</span>
+                    </div>
+                </div>
+
+                <div class="header-center">
+                    <div class="header-search-wrapper">
+                        <i data-lucide="search" class="search-icon"></i>
+                        <input type="text" id="topHeaderSearch" placeholder="Search questions by keyword, topic, or subject..." autocomplete="off">
+                        <kbd class="search-kbd">/</kbd>
+                    </div>
+                </div>
+
+                <div class="header-right">
+                    <div class="header-api-pill" id="headerApiPill" title="API Status">
+                        <span class="status-dot"></span>
+                        <span class="header-api-text">API Checking...</span>
+                    </div>
+
+                    <div class="user-profile-widget">
+                        <div class="user-avatar">
+                            <span>MU</span>
+                        </div>
+                        <div class="user-meta">
+                            <span class="user-name">T.E. AI&DS</span>
+                            <span class="user-role">AY 2026-27</span>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Main Scrollable Content -->
+            <main class="main-content" id="mainContent">
+
+                <!-- =========================================================
+                     VIEW 1: DASHBOARD OVERVIEW (#dashboard)
+                     ========================================================= -->
+                <div class="view-section" id="viewDashboard" style="display: none;">
+                    <div class="page-title-banner">
+                        <div class="title-group">
+                            <h2 class="page-heading">Semester V AI&DS Dashboard</h2>
+                            <p class="page-subheading">University of Mumbai Syllabus Question Bank • Effective AY 2026-27 • Real-time metrics & distribution.</p>
+                        </div>
+                        <div class="action-group">
+                            <a href="#questions" class="btn btn-secondary" id="btnGoToQuestions">
+                                <i data-lucide="play" class="btn-icon"></i>
+                                <span>Start Quiz</span>
+                            </a>
+                            <button class="btn btn-primary" onclick="openQuestionModal()">
+                                <i data-lucide="plus" class="btn-icon"></i>
+                                <span>Add Question</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Live Metrics / Stats Cards on Dashboard -->
+                    <section class="stats-grid" aria-label="Dashboard Overview Statistics">
+                        <div class="stat-card">
+                            <div class="stat-icon-wrapper bg-indigo-subtle">
+                                <i data-lucide="help-circle" class="text-indigo"></i>
+                            </div>
+                            <div class="stat-content">
+                                <span class="stat-title">Total Questions</span>
+                                <div class="stat-value-group">
+                                    <span class="stat-value" id="dashTotalQuestions">0</span>
+                                    <span class="stat-trend trend-neutral">In Bank</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="stat-card">
+                            <div class="stat-icon-wrapper bg-emerald-subtle">
+                                <i data-lucide="book-open" class="text-emerald"></i>
+                            </div>
+                            <div class="stat-content">
+                                <span class="stat-title">Syllabus Subjects</span>
+                                <div class="stat-value-group">
+                                    <span class="stat-value" id="dashCategoriesCount">7</span>
+                                    <span class="stat-trend trend-positive">3 Core • 3 Elective-I • 1 Other</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="stat-card">
+                            <div class="stat-icon-wrapper bg-violet-subtle">
+                                <i data-lucide="layers" class="text-violet"></i>
+                            </div>
+                            <div class="stat-content">
+                                <span class="stat-title">Syllabus Modules</span>
+                                <div class="stat-value-group">
+                                    <span class="stat-value" id="dashModulesCount">42</span>
+                                    <span class="stat-trend trend-neutral">6 per Subject</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="stat-card">
+                            <div class="stat-icon-wrapper bg-slate-subtle" id="dashApiIconWrapper">
+                                <i data-lucide="activity" class="text-slate" id="dashApiIcon"></i>
+                            </div>
+                            <div class="stat-content">
+                                <span class="stat-title">API Status</span>
+                                <div class="stat-value-group">
+                                    <span class="stat-value stat-status-text" id="dashApiStatus">Checking...</span>
+                                    <span class="stat-trend" id="dashApiLatency">- ms</span>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- Difficulty & Question Type Distribution Grid -->
+                    <div class="dashboard-split-grid" style="margin-bottom: 1.5rem;">
+                        <div class="dashboard-panel">
+                            <div class="panel-header">
+                                <div class="panel-title-wrap">
+                                    <div class="panel-icon bg-indigo-subtle text-indigo">
+                                        <i data-lucide="bar-chart-2"></i>
+                                    </div>
+                                    <div>
+                                        <h3 class="panel-title">Difficulty Distribution</h3>
+                                        <p class="panel-subtitle">Target: 25% Easy • 50% Medium • 25% Hard</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="category-mini-bars" id="difficultyMiniBars" style="padding: 1rem 0;">
+                                <!-- Injected dynamically -->
+                            </div>
+                        </div>
+
+                        <div class="dashboard-panel">
+                            <div class="panel-header">
+                                <div class="panel-title-wrap">
+                                    <div class="panel-icon bg-emerald-subtle text-emerald">
+                                        <i data-lucide="pie-chart"></i>
+                                    </div>
+                                    <div>
+                                        <h3 class="panel-title">Question-Type Breakdown</h3>
+                                        <p class="panel-subtitle">Conceptual, Numerical, Application, Scenario & Architecture</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="category-mini-bars" id="typeMiniBars" style="padding: 1rem 0;">
+                                <!-- Injected dynamically -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Dashboard Content Split Layout -->
+                    <div class="dashboard-split-grid">
+                        <!-- Left Column: Subject Breakdown List -->
+                        <div class="dashboard-panel">
+                            <div class="panel-header">
+                                <div class="panel-title-wrap">
+                                    <div class="panel-icon bg-indigo-subtle text-indigo">
+                                        <i data-lucide="clock"></i>
+                                    </div>
+                                    <div>
+                                        <h3 class="panel-title">Subject Question Bank Breakdown</h3>
+                                        <p class="panel-subtitle">Distribution across Semester V subjects</p>
+                                    </div>
+                                </div>
+                                <a href="#bank" class="panel-action-link">
+                                    <span>View All</span>
+                                    <i data-lucide="arrow-right"></i>
+                                </a>
+                            </div>
+                            <div class="category-mini-bars" id="categoryMiniBars" style="padding: 1rem 0;">
+                                <!-- Dynamically injected via JS -->
+                            </div>
+                        </div>
+
+                        <!-- Right Column: System & API Diagnostics -->
+                        <div class="dashboard-panel">
+                            <div class="panel-header">
+                                <div class="panel-title-wrap">
+                                    <div class="panel-icon bg-emerald-subtle text-emerald">
+                                        <i data-lucide="server"></i>
+                                    </div>
+                                    <div>
+                                        <h3 class="panel-title">Curriculum & System Metadata</h3>
+                                        <p class="panel-subtitle">University of Mumbai Autonomous Academic Framework</p>
+                                    </div>
+                                </div>
+                                <button class="btn-icon-subtle" onclick="checkHealth()" title="Re-check health">
+                                    <i data-lucide="rotate-cw"></i>
+                                </button>
+                            </div>
+
+                            <div class="system-status-body">
+                                <div class="system-info-row">
+                                    <span class="sys-label">Target University</span>
+                                    <span class="sys-value">University of Mumbai</span>
+                                </div>
+                                <div class="system-info-row">
+                                    <span class="sys-label">Program & Semester</span>
+                                    <span class="sys-value">T.E. AI & Data Science — Semester V</span>
+                                </div>
+                                <div class="system-info-row">
+                                    <span class="sys-label">Effective Academic Year</span>
+                                    <span class="sys-value">AY 2026-27</span>
+                                </div>
+                                <div class="system-info-row">
+                                    <span class="sys-label">Backend API Status</span>
+                                    <span class="sys-badge healthy" id="sysHealthBadge">● Operational</span>
+                                </div>
+                                <div class="system-info-row">
+                                    <span class="sys-label">Syllabus Endpoint</span>
+                                    <code class="sys-code">GET /api/syllabus</code>
+                                </div>
+                                <div class="system-info-row">
+                                    <span class="sys-label">Questions Endpoint</span>
+                                    <code class="sys-code">GET /items (Multi-Filter)</code>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- =========================================================
+                     VIEW 2: QUESTION BANK EXPLORER (#bank)
+                     ========================================================= -->
+                <div class="view-section" id="viewBank" style="display: none;">
+                    <div class="page-title-banner">
+                        <div class="title-group">
+                            <h2 class="page-heading">Question Bank Explorer</h2>
+                            <p class="page-subheading">Browse, search, and filter all questions across Subjects, Modules, Topics, Difficulty, and Types.</p>
+                        </div>
+                        <div class="action-group">
+                            <button class="btn btn-primary" onclick="openQuestionModal()">
+                                <i data-lucide="plus" class="btn-icon"></i>
+                                <span>Create Question</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Multi-Filter Control Panel -->
+                    <div class="bank-filters-card" style="background: var(--card-bg); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: 1.25rem; margin-bottom: 1.5rem;">
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0.75rem;">
+                            <!-- Subject Filter -->
+                            <div>
+                                <label for="bankSubjectFilter" style="font-size: 0.75rem; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 0.25rem;">SUBJECT</label>
+                                <select id="bankSubjectFilter" class="custom-select" style="width: 100%;">
+                                    <option value="all">All Subjects (7)</option>
+                                </select>
+                            </div>
+
+                            <!-- Module Filter -->
+                            <div>
+                                <label for="bankModuleFilter" style="font-size: 0.75rem; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 0.25rem;">MODULE</label>
+                                <select id="bankModuleFilter" class="custom-select" style="width: 100%;">
+                                    <option value="all">All Modules</option>
+                                </select>
+                            </div>
+
+                            <!-- Difficulty Filter -->
+                            <div>
+                                <label for="bankDiffFilter" style="font-size: 0.75rem; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 0.25rem;">DIFFICULTY</label>
+                                <select id="bankDiffFilter" class="custom-select" style="width: 100%;">
+                                    <option value="all">All Difficulties</option>
+                                    <option value="easy">Easy (25%)</option>
+                                    <option value="medium">Medium (50%)</option>
+                                    <option value="hard">Hard (25%)</option>
+                                </select>
+                            </div>
+
+                            <!-- Question Type Filter -->
+                            <div>
+                                <label for="bankTypeFilter" style="font-size: 0.75rem; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 0.25rem;">QUESTION TYPE</label>
+                                <select id="bankTypeFilter" class="custom-select" style="width: 100%;">
+                                    <option value="all">All Types</option>
+                                    <option value="conceptual">Conceptual</option>
+                                    <option value="application">Application</option>
+                                    <option value="numerical">Numerical</option>
+                                    <option value="comparison">Comparison</option>
+                                    <option value="scenario">Scenario</option>
+                                    <option value="architecture">Architecture</option>
+                                    <option value="code_debugging">Code / Debugging</option>
+                                    <option value="case_study">Case Study</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Question List Container -->
+                    <div id="bankQuestionsContainer">
+                        <!-- Dynamically populated via JS -->
+                    </div>
+                </div>
+
+                <!-- =========================================================
+                     VIEW 3: INTERACTIVE QUIZ MODE (#questions)
+                     ========================================================= -->
+                <div class="view-section active" id="viewQuestions">
+                    <!-- Page Banner -->
+                    <div class="page-title-banner">
+                        <div class="title-group">
+                            <h2 class="page-heading">Interactive Quiz Mode</h2>
+                            <p class="page-subheading">Configure syllabus target, test knowledge under exam conditions, and review explanations.</p>
+                        </div>
+                        <div class="action-group">
+                            <button class="btn btn-secondary" id="btnRestartQuiz" onclick="restartQuiz()">
+                                <i data-lucide="rotate-ccw" class="btn-icon"></i>
+                                <span>Restart Quiz</span>
+                            </button>
+                            <button class="btn btn-primary" id="btnOpenNewQuestionModal">
+                                <i data-lucide="plus" class="btn-icon"></i>
+                                <span>New Question</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Syllabus Selection & Quiz Configuration Bar -->
+                    <section class="quiz-config-bar" style="background: var(--card-bg); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: 1rem; margin-bottom: 1.25rem;">
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 0.75rem; align-items: end;">
+                            <div>
+                                <label for="quizSubjectSelect" style="font-size: 0.72rem; font-weight: 700; color: var(--text-muted); display: block; margin-bottom: 0.25rem;">TARGET SUBJECT</label>
+                                <select id="quizSubjectSelect" class="custom-select" style="width: 100%; font-size: 0.8rem;">
+                                    <option value="all">All Subjects (Comprehensive)</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label for="quizModuleSelect" style="font-size: 0.72rem; font-weight: 700; color: var(--text-muted); display: block; margin-bottom: 0.25rem;">TARGET MODULE</label>
+                                <select id="quizModuleSelect" class="custom-select" style="width: 100%; font-size: 0.8rem;">
+                                    <option value="all">All Modules</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label for="quizTopicSelect" style="font-size: 0.72rem; font-weight: 700; color: var(--text-muted); display: block; margin-bottom: 0.25rem;">TARGET TOPIC</label>
+                                <select id="quizTopicSelect" class="custom-select" style="width: 100%; font-size: 0.8rem;">
+                                    <option value="all">All Topics</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label for="quizDifficultySelect" style="font-size: 0.72rem; font-weight: 700; color: var(--text-muted); display: block; margin-bottom: 0.25rem;">DIFFICULTY</label>
+                                <select id="quizDifficultySelect" class="custom-select" style="width: 100%; font-size: 0.8rem;">
+                                    <option value="all">Any Difficulty</option>
+                                    <option value="easy">Easy</option>
+                                    <option value="medium">Medium</option>
+                                    <option value="hard">Hard</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label for="quizCountSelect" style="font-size: 0.72rem; font-weight: 700; color: var(--text-muted); display: block; margin-bottom: 0.25rem;">QUESTION COUNT</label>
+                                <select id="quizCountSelect" class="custom-select" style="width: 100%; font-size: 0.8rem;">
+                                    <option value="10">10 Questions</option>
+                                    <option value="20" selected>20 Questions</option>
+                                    <option value="30">30 Questions</option>
+                                    <option value="50">50 Questions</option>
+                                    <option value="all">All Matching</option>
+                                </select>
+                            </div>
+                            <div>
+                                <button class="btn btn-primary" onclick="initializeQuiz()" style="width: 100%; justify-content: center;">
+                                    <i data-lucide="play" class="btn-icon"></i>
+                                    <span>Start Session</span>
+                                </button>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- Live Quiz Score & Progress Banner -->
+                    <section class="quiz-tracker-card" id="quizTrackerCard">
+                        <div class="tracker-left">
+                            <div class="progress-info-row">
+                                <span class="progress-title" id="quizProgressText">Question 1 of 0</span>
+                                <span class="progress-percent" id="quizProgressPercent">0%</span>
+                            </div>
+                            <div class="quiz-progress-bar-track">
+                                <div class="quiz-progress-bar-fill" id="quizProgressFill" style="width: 0%;"></div>
+                            </div>
+                        </div>
+
+                        <div class="tracker-right">
+                            <div class="tracker-score-pill">
+                                <i data-lucide="award" class="text-indigo"></i>
+                                <span>Score: <strong id="quizScoreText">0 pts</strong></span>
+                            </div>
+                            <div class="tracker-stat-pill pill-correct">
+                                <i data-lucide="check" class="text-emerald"></i>
+                                <span id="quizCorrectCount">0</span>
+                            </div>
+                            <div class="tracker-stat-pill pill-incorrect">
+                                <i data-lucide="x" class="text-rose"></i>
+                                <span id="quizIncorrectCount">0</span>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- Interactive Quiz Active Stage Container -->
+                    <div class="quiz-stage-container" id="quizStageContainer">
+                        <!-- Dynamic Question Player Card or Results Screen injected here via JS -->
+                    </div>
+                </div>
+
+                <!-- =========================================================
+                     VIEW 4: SYLLABUS & CATEGORIES (#categories)
+                     ========================================================= -->
+                <div class="view-section" id="viewCategories" style="display: none;">
+                    <div class="page-title-banner">
+                        <div class="title-group">
+                            <h2 class="page-heading">University of Mumbai Syllabus Hierarchy</h2>
+                            <p class="page-subheading">T.E. AI & DS (Sem V, 2026-27) • Core Subjects, Program Elective-I (choose 1), and Other Subjects.</p>
+                        </div>
+                        <div class="action-group">
+                            <button class="btn btn-primary" onclick="openQuestionModal()">
+                                <i data-lucide="plus" class="btn-icon"></i>
+                                <span>New Question</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Categories Hierarchy View Grid -->
+                    <div class="categories-grid" id="categoriesGrid">
+                        <!-- Dynamic Subject and Module Accordions injected via JS -->
+                    </div>
+                </div>
+
+            </main>
+        </div>
+    </div>
+
+    <!-- CREATE QUESTION MODAL DIALOG -->
+    <div class="modal-backdrop" id="newQuestionModal" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+        <div class="modal-dialog" style="max-width: 680px;">
+            <div class="modal-header">
+                <div class="modal-title-wrap">
+                    <div class="modal-icon-badge">
+                        <i data-lucide="plus-circle"></i>
+                    </div>
+                    <div>
+                        <h3 class="modal-title" id="modalTitle">Add Syllabus Question</h3>
+                        <p class="modal-subtitle">Add a verified MCQ to the University of Mumbai AI&DS Question Bank.</p>
+                    </div>
+                </div>
+                <button class="modal-close-btn" id="closeModalBtn" aria-label="Close modal">
+                    <i data-lucide="x"></i>
+                </button>
+            </div>
+
+            <form id="createQuestionForm" novalidate>
+                <div class="modal-body">
+                    <!-- Alert Banner -->
+                    <div class="modal-alert-banner" id="modalAlertBanner" style="display: none;">
+                        <i data-lucide="alert-triangle"></i>
+                        <span id="modalAlertMessage">Failed to submit question.</span>
+                    </div>
+
+                    <!-- Syllabus Hierarchical Selectors -->
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 1rem;">
+                        <div class="form-group">
+                            <label for="inputModalSubject" class="form-label">
+                                Subject <span class="required-star">*</span>
+                            </label>
+                            <select id="inputModalSubject" class="form-control custom-select" required>
+                                <option value="" disabled selected>Select Subject</option>
+                            </select>
+                            <div class="field-error" id="errorSubject">Please select a subject.</div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="inputModalModule" class="form-label">
+                                Module <span class="required-star">*</span>
+                            </label>
+                            <select id="inputModalModule" class="form-control custom-select" required>
+                                <option value="" disabled selected>Select Module</option>
+                            </select>
+                            <div class="field-error" id="errorModule">Please select a module.</div>
+                        </div>
+                    </div>
+
+                    <div style="display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 0.75rem; margin-bottom: 1rem;">
+                        <div class="form-group">
+                            <label for="inputModalTopic" class="form-label">
+                                Topic <span class="required-star">*</span>
+                            </label>
+                            <input type="text" id="inputModalTopic" class="form-control" placeholder="e.g. Subnetting, PCA, Hebbian learning" list="topicDatalist" required>
+                            <datalist id="topicDatalist"></datalist>
+                            <div class="field-error" id="errorTopic">Please specify the topic.</div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="selectDifficulty" class="form-label">Difficulty</label>
+                            <select id="selectDifficulty" name="difficulty" class="form-control custom-select">
+                                <option value="Easy">Easy (25%)</option>
+                                <option value="Medium" selected>Medium (50%)</option>
+                                <option value="Hard">Hard (25%)</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="selectQuestionType" class="form-label">Question Type</label>
+                            <select id="selectQuestionType" name="question_type" class="form-control custom-select">
+                                <option value="conceptual" selected>Conceptual</option>
+                                <option value="application">Application</option>
+                                <option value="numerical">Numerical</option>
+                                <option value="comparison">Comparison</option>
+                                <option value="scenario">Scenario</option>
+                                <option value="architecture">Architecture</option>
+                                <option value="code_debugging">Code Debugging</option>
+                                <option value="case_study">Case Study</option>
+                                <option value="self_learning">Self-Learning</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Question Field -->
+                    <div class="form-group">
+                        <label for="inputQuestion" class="form-label">
+                            Question Text <span class="required-star">*</span>
+                        </label>
+                        <textarea id="inputQuestion" name="question" class="form-control" rows="3" placeholder="Enter clear, precise question text..." required></textarea>
+                        <div class="field-error" id="errorQuestion">Question cannot be empty.</div>
+                    </div>
+
+                    <!-- Options Grid -->
+                    <div class="form-section-title">OPTIONS (A through D) <span class="required-star">*</span></div>
+                    
+                    <div class="options-input-grid">
+                        <div class="form-group">
+                            <label for="inputOptionA" class="form-label"><span class="option-tag tag-a">A</span> Option A</label>
+                            <input type="text" id="inputOptionA" name="option_a" class="form-control" placeholder="Enter option A..." required>
+                            <div class="field-error" id="errorOptionA">Option A is required.</div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="inputOptionB" class="form-label"><span class="option-tag tag-b">B</span> Option B</label>
+                            <input type="text" id="inputOptionB" name="option_b" class="form-control" placeholder="Enter option B..." required>
+                            <div class="field-error" id="errorOptionB">Option B is required.</div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="inputOptionC" class="form-label"><span class="option-tag tag-c">C</span> Option C</label>
+                            <input type="text" id="inputOptionC" name="option_c" class="form-control" placeholder="Enter option C..." required>
+                            <div class="field-error" id="errorOptionC">Option C is required.</div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="inputOptionD" class="form-label"><span class="option-tag tag-d">D</span> Option D</label>
+                            <input type="text" id="inputOptionD" name="option_d" class="form-control" placeholder="Enter option D..." required>
+                            <div class="field-error" id="errorOptionD">Option D is required.</div>
+                        </div>
+                    </div>
+
+                    <!-- Correct Answer and Explanation -->
+                    <div style="display: grid; grid-template-columns: 1fr 2fr; gap: 0.75rem; margin-top: 0.75rem;">
+                        <div class="form-group">
+                            <label for="selectAnswer" class="form-label">
+                                Correct Answer <span class="required-star">*</span>
+                            </label>
+                            <select id="selectAnswer" name="answer" class="form-control custom-select" required>
+                                <option value="" disabled selected>Select Answer</option>
+                                <option value="A">Option A</option>
+                                <option value="B">Option B</option>
+                                <option value="C">Option C</option>
+                                <option value="D">Option D</option>
+                            </select>
+                            <div class="field-error" id="errorAnswer">Please select correct option.</div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="inputExplanation" class="form-label">
+                                Explanation / Rationale <span class="required-star">*</span>
+                            </label>
+                            <input type="text" id="inputExplanation" class="form-control" placeholder="Detailed explanation why this answer is correct..." required>
+                            <div class="field-error" id="errorExplanation">Explanation is required.</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" id="cancelModalBtn">Cancel</button>
+                    <button type="submit" class="btn btn-primary" id="submitQuestionBtn">
+                        <span class="btn-spinner" id="btnSpinner" style="display: none;"></span>
+                        <span id="btnSubmitText">Create Question</span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- VIEW QUESTION DETAIL MODAL -->
+    <div class="modal-backdrop" id="viewQuestionModal" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="viewModalTitle">
+        <div class="modal-dialog" style="max-width: 650px;">
+            <div class="modal-header">
+                <div class="modal-title-wrap">
+                    <div class="modal-icon-badge bg-indigo-subtle text-indigo">
+                        <i data-lucide="eye"></i>
+                    </div>
+                    <div>
+                        <h3 class="modal-title" id="viewModalTitle">Question Details</h3>
+                        <p class="modal-subtitle" id="viewModalMeta">Subject • Module • Topic</p>
+                    </div>
+                </div>
+                <button class="modal-close-btn" id="closeViewModalBtn" aria-label="Close modal">
+                    <i data-lucide="x"></i>
+                </button>
+            </div>
+            <div class="modal-body" id="viewModalBody">
+                <!-- Dynamically populated -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" id="closeViewModalFooterBtn">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- TOAST NOTIFICATION CONTAINER -->
+    <div class="toast-container" id="toastContainer" aria-live="assertive" aria-atomic="true"></div>
+
+    <!-- Main JavaScript Logic -->
+    <script src="/static/js/app.js"></script>
+</body>
+</html>
